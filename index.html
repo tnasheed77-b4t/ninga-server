@@ -4,13 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ninga</title>
+  <!-- Load Essentia.js WebAssembly Audio Engine -->
+  <script src="https://cdn.jsdelivr.net/npm/essentia.js@0.1.3/dist/essentia-wasm.web.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/essentia.js@0.1.3/dist/essentia.js-core.js"></script>
   <style>
-    /* Match PyQt6 solid black background & layout */
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       background-color: #000000;
       color: #FFFFFF;
@@ -22,8 +20,6 @@
       width: 100vw;
       overflow: hidden;
     }
-
-    /* Main Container (400x500 like the PyQt window) */
     .app-container {
       width: 400px;
       height: 500px;
@@ -36,8 +32,6 @@
       user-select: none;
       padding: 20px;
     }
-
-    /* Logo Styling */
     .logo-container {
       width: 200px;
       height: 200px;
@@ -51,12 +45,7 @@
       max-height: 200px;
       object-fit: contain;
     }
-    .logo-fallback {
-      color: #FFFFFF;
-      font-size: 16px;
-    }
-
-    /* Text Label (Matches your result_label styles) */
+    .logo-fallback { color: #FFFFFF; font-size: 16px; }
     .result-label {
       color: #FFFFFF;
       font-size: 18px;
@@ -65,77 +54,62 @@
       line-height: 1.4;
       word-break: break-word;
     }
-
-    /* Drag hover effect */
     .app-container.drag-over {
       outline: 2px dashed #ffffff;
       border-radius: 12px;
     }
-
-    /* Hidden file input */
-    #fileInput {
-      display: none;
-    }
+    #fileInput { display: none; }
   </style>
 </head>
 <body>
 
   <div class="app-container" id="dropZone">
-    <!-- Logo Display -->
     <div class="logo-container">
       <img src="logo.png" alt="logo" onerror="this.style.display='none'; document.getElementById('fallback').style.display='block';">
       <span id="fallback" class="logo-fallback" style="display: none;">[ Logo Missing ]</span>
     </div>
 
-    <!-- Status / Results Display -->
     <div class="result-label" id="resultLabel">
       Drag &amp; Drop an audio file here
     </div>
 
-    <!-- Hidden File Picker -->
     <input type="file" id="fileInput" accept=".wav,.mp3,.flac,.ogg,.m4a,audio/*">
   </div>
 
   <script>
+    let essentia = null;
+
+    // Initialize WebAssembly Engine
+    EssentiaWASM().then(function(WasmModule) {
+      essentia = new Essentia(WasmModule);
+    });
+
     const dropZone = document.getElementById('dropZone');
     const fileInput = document.getElementById('fileInput');
     const resultLabel = document.getElementById('resultLabel');
-
-    // Supported extensions from your Python script
     const validExtensions = ['.wav', '.mp3', '.flac', '.ogg', '.m4a'];
 
-    // Click anywhere in app box to open file selector
     dropZone.addEventListener('click', () => fileInput.click());
-
     fileInput.addEventListener('change', () => {
-      if (fileInput.files.length) {
-        handleFile(fileInput.files[0]);
-      }
+      if (fileInput.files.length) handleFile(fileInput.files[0]);
     });
 
-    // Drag & Drop event handlers
     dropZone.addEventListener('dragover', (e) => {
       e.preventDefault();
       dropZone.classList.add('drag-over');
     });
 
-    ['dragleave', 'dragend'].forEach(eventType => {
-      dropZone.addEventListener(eventType, () => {
-        dropZone.classList.remove('drag-over');
-      });
+    ['dragleave', 'dragend'].forEach(evt => {
+      dropZone.addEventListener(evt, () => dropZone.classList.remove('drag-over'));
     });
 
     dropZone.addEventListener('drop', (e) => {
       e.preventDefault();
       dropZone.classList.remove('drag-over');
-
-      if (e.dataTransfer.files.length) {
-        handleFile(e.dataTransfer.files[0]);
-      }
+      if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
     });
 
-    // Validate and process selected file
-    function handleFile(file) {
+    async function handleFile(file) {
       const fileName = file.name.toLowerCase();
       const isValid = validExtensions.some(ext => fileName.endsWith(ext));
 
@@ -144,36 +118,43 @@
         return;
       }
 
-      resultLabel.innerText = 'Analyzing audio...';
-      uploadAndAnalyze(file);
-    }
+      if (!essentia) {
+        resultLabel.innerText = 'Engine loading, try again in a second...';
+        return;
+      }
 
-    // Send audio file to your live Render API
-    async function uploadAndAnalyze(file) {
-      const formData = new FormData();
-      formData.append('file', file);
+      resultLabel.innerText = 'Analyzing audio...';
 
       try {
-        const response = await fetch('https://ninga-audio-api.onrender.com/analyze', {
-          method: 'POST',
-          body: formData
-        });
+        // Step 1: Decode Audio Buffer locally in browser
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const arrayBuffer = await file.arrayBuffer();
+        const decodedAudio = await audioCtx.decodeAudioData(arrayBuffer);
 
-        if (!response.ok) {
-          throw new Error('Server returned an error');
-        }
+        // Step 2: Convert audio channels to Mono Vector for Essentia
+        const channelData = decodedAudio.getChannelData(0);
+        const audioVector = essentia.arrayToVector(channelData);
 
-        const data = await response.json();
+        // Step 3: Fast BPM Detection
+        const bpmResult = essentia.PercivalBpmEstimator(
+          audioVector,
+          decodedAudio.sampleRate,
+          2048, 1024, 128, 0.1, 200, 50, 1024
+        );
 
-        // Format result like your Python code: "128 BPM  |  C Major"
-        if (data.key) {
-          resultLabel.innerText = `${data.bpm}  |  ${data.key}`;
-        } else {
-          resultLabel.innerText = `${data.bpm}`;
-        }
-      } catch (error) {
-        console.error(error);
-        resultLabel.innerText = 'Error processing file';
+        // Step 4: Fast Key Detection
+        const keyResult = essentia.KeyExtractor(
+          audioVector,
+          true, 4096, 4096, 12, 3500, 60, 25, 0.2, 'profileHPCP', 4410, decodedAudio.sampleRate
+        );
+
+        const roundedBpm = Math.round(bpmResult.bpm);
+        const detectedKey = `${keyResult.key} ${keyResult.scale}`;
+
+        resultLabel.innerText = `${roundedBpm} BPM  |  ${detectedKey}`;
+      } catch (err) {
+        console.error(err);
+        resultLabel.innerText = 'Error processing file locally';
       }
     }
   </script>
