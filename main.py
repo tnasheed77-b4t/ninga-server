@@ -27,7 +27,7 @@ async def analyze_endpoint(file: UploadFile = File(...)):
         contents = await file.read()
         audio_stream = io.BytesIO(contents)
 
-        # OPTIMIZATION: Downsample to 22050 Hz and analyze ONLY 30 seconds
+        # SPEED FIX: Downsample to 22050 Hz and analyze ONLY 30 seconds (10s to 40s)
         y, sr = librosa.load(audio_stream, sr=22050, offset=10, duration=30)
 
         # 1. Detect BPM
@@ -63,4 +63,5 @@ async def analyze_endpoint(file: UploadFile = File(...)):
         return {"bpm": bpm_str, "key": detected_key}
 
     except Exception as e:
+        print("Error processing audio:", e)
         return {"bpm": "Error processing file", "key": ""}
