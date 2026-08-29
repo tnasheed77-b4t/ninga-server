@@ -5,11 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ninga</title>
   <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       background-color: #000000;
       color: #FFFFFF;
@@ -104,7 +100,7 @@
       if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
     });
 
-    function handleFile(file) {
+    async function handleFile(file) {
       const fileName = file.name.toLowerCase();
       const isValid = validExtensions.some(ext => fileName.endsWith(ext));
 
@@ -113,13 +109,41 @@
         return;
       }
 
-      resultLabel.innerText = 'Analyzing audio...';
-      uploadAndAnalyze(file);
+      resultLabel.innerText = 'Extracting snippet...';
+
+      try {
+        // Step 1: Decode Audio in Browser Memory
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const arrayBuffer = await file.arrayBuffer();
+        const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+
+        // Step 2: Slice a 15-second segment (from 15s to 30s into track)
+        const sampleRate = audioBuffer.sampleRate;
+        const startOffset = Math.min(15 * sampleRate, audioBuffer.length - 1);
+        const durationSamples = Math.min(15 * sampleRate, audioBuffer.length - startOffset);
+        
+        const offlineCtx = new OfflineAudioContext(1, durationSamples, 22050);
+        const source = offlineCtx.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(offlineCtx.destination);
+        source.start(0, startOffset / sampleRate, durationSamples / sampleRate);
+        
+        const renderedBuffer = await offlineCtx.startRendering();
+        
+        // Step 3: Convert 15s slice into lightweight WAV blob
+        const wavBlob = audioBufferToWavBlob(renderedBuffer);
+
+        resultLabel.innerText = 'Analyzing audio...';
+        uploadAndAnalyze(wavBlob);
+      } catch (err) {
+        console.error(err);
+        resultLabel.innerText = 'Error preparing file';
+      }
     }
 
-    async function uploadAndAnalyze(file) {
+    async function uploadAndAnalyze(blob) {
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('file', blob, 'snippet.wav');
 
       try {
         const response = await fetch('https://ninga-audio-api.onrender.com/analyze', {
@@ -142,6 +166,45 @@
         console.error(error);
         resultLabel.innerText = 'Error processing file';
       }
+    }
+
+    // Convert AudioBuffer to WAV format
+    function audioBufferToWavBlob(buffer) {
+      const numOfChan = buffer.numberOfChannels;
+      const length = buffer.length * numOfChan * 2 + 44;
+      const out = new DataView(new ArrayBuffer(length));
+      let channels = [], sample, offset = 0, pos = 0;
+
+      function setUint16(data) { out.setUint16(pos, data, true); pos += 2; }
+      function setUint32(data) { out.setUint32(pos, data, true); pos += 4; }
+
+      setUint32(0x46464952); // "RIFF"
+      setUint32(length - 8);
+      setUint32(0x45564157); // "WAVE"
+      setUint32(0x20746d66); // "fmt "
+      setUint32(16);
+      setUint16(1);
+      setUint16(numOfChan);
+      setUint32(buffer.sampleRate);
+      setUint32(buffer.sampleRate * 2 * numOfChan);
+      setUint16(numOfChan * 2);
+      setUint16(16);
+      setUint32(0x61746164); // "data"
+      setUint32(length - pos - 4);
+
+      for (let i = 0; i < buffer.numberOfChannels; i++) channels.push(buffer.getChannelData(i));
+
+      while (offset < buffer.length) {
+        for (let i = 0; i < numOfChan; i++) {
+          sample = Math.max(-1, Math.min(1, channels[i][offset]));
+          sample = (0.5 + sample < 0 ? sample * 32768 : sample * 32767) | 0;
+          out.setInt16(pos, sample, true);
+          pos += 2;
+        }
+        offset++;
+      }
+
+      return new Blob([out.buffer], { type: 'audio/wav' });
     }
   </script>
 </body>

@@ -27,17 +27,16 @@ async def analyze_endpoint(file: UploadFile = File(...)):
         contents = await file.read()
         audio_stream = io.BytesIO(contents)
 
-        # SPEED FIX: Downsample to 22050 Hz and analyze ONLY 30 seconds (10s to 40s)
-        y, sr = librosa.load(audio_stream, sr=22050, offset=10, duration=30)
+        # Load pre-sliced 15-second snippet instantly
+        y, sr = librosa.load(audio_stream, sr=22050)
 
-        # 1. Detect BPM
+        # 1. Fast BPM Detection
         tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
         bpm_val = float(np.mean(tempo))
         bpm_str = f"{round(bpm_val)} BPM"
 
-        # 2. Detect Key
-        y_harmonic, _ = librosa.effects.hpss(y)
-        chroma = librosa.feature.chroma_cqt(y=y_harmonic, sr=sr)
+        # 2. Fast Key Detection using Chromagram
+        chroma = librosa.feature.chroma_stft(y=y, sr=sr)
         chroma_vals = np.sum(chroma, axis=1)
 
         if np.sum(chroma_vals) > 0:
