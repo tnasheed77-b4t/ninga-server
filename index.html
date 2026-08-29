@@ -109,28 +109,25 @@
         return;
       }
 
-      resultLabel.innerText = 'Extracting snippet...';
+      resultLabel.innerText = 'Extracting first 15s...';
 
       try {
-        // Step 1: Decode Audio in Browser Memory
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         const arrayBuffer = await file.arrayBuffer();
         const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
 
-        // Step 2: Slice a 15-second segment (from 15s to 30s into track)
+        // Slice strictly from 0 to 15 seconds
         const sampleRate = audioBuffer.sampleRate;
-        const startOffset = Math.min(15 * sampleRate, audioBuffer.length - 1);
-        const durationSamples = Math.min(15 * sampleRate, audioBuffer.length - startOffset);
+        const startOffset = 0;
+        const durationSamples = Math.min(15 * sampleRate, audioBuffer.length);
         
         const offlineCtx = new OfflineAudioContext(1, durationSamples, 22050);
         const source = offlineCtx.createBufferSource();
         source.buffer = audioBuffer;
         source.connect(offlineCtx.destination);
-        source.start(0, startOffset / sampleRate, durationSamples / sampleRate);
+        source.start(0, 0, durationSamples / sampleRate);
         
         const renderedBuffer = await offlineCtx.startRendering();
-        
-        // Step 3: Convert 15s slice into lightweight WAV blob
         const wavBlob = audioBufferToWavBlob(renderedBuffer);
 
         resultLabel.innerText = 'Analyzing audio...';
@@ -168,7 +165,6 @@
       }
     }
 
-    // Convert AudioBuffer to WAV format
     function audioBufferToWavBlob(buffer) {
       const numOfChan = buffer.numberOfChannels;
       const length = buffer.length * numOfChan * 2 + 44;
@@ -178,10 +174,10 @@
       function setUint16(data) { out.setUint16(pos, data, true); pos += 2; }
       function setUint32(data) { out.setUint32(pos, data, true); pos += 4; }
 
-      setUint32(0x46464952); // "RIFF"
+      setUint32(0x46464952);
       setUint32(length - 8);
-      setUint32(0x45564157); // "WAVE"
-      setUint32(0x20746d66); // "fmt "
+      setUint32(0x45564157);
+      setUint32(0x20746d66);
       setUint32(16);
       setUint16(1);
       setUint16(numOfChan);
@@ -189,7 +185,7 @@
       setUint32(buffer.sampleRate * 2 * numOfChan);
       setUint16(numOfChan * 2);
       setUint16(16);
-      setUint32(0x61746164); // "data"
+      setUint32(0x61746164);
       setUint32(length - pos - 4);
 
       for (let i = 0; i < buffer.numberOfChannels; i++) channels.push(buffer.getChannelData(i));

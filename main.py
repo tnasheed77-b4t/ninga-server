@@ -27,8 +27,8 @@ async def analyze_endpoint(file: UploadFile = File(...)):
         contents = await file.read()
         audio_stream = io.BytesIO(contents)
 
-        # Load pre-sliced 15-second snippet instantly
-        y, sr = librosa.load(audio_stream, sr=22050)
+        # Analyze strictly the FIRST 15 SECONDS (offset=0, duration=15)
+        y, sr = librosa.load(audio_stream, sr=22050, offset=0, duration=15)
 
         # 1. Fast BPM Detection
         tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
