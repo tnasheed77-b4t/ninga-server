@@ -11,7 +11,7 @@
   "icons": [
     {
       "src": "logo.png",
-      "sizes": "512x512",
+      "sizes": "300x300",
       "type": "image/png",
       "purpose": "any maskable"
     }
@@ -19,7 +19,7 @@
   "screenshots": [
     {
       "src": "logo.png",
-      "sizes": "512x512",
+      "sizes": "300x300",
       "type": "image/png"
     }
   ]
