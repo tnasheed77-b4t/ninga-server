@@ -5,153 +5,141 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ninga</title>
 
-  <!-- Android / PWA Manifest & Theme -->
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#000000">
   <link rel="icon" type="image/png" href="logo.png">
-
-  <!-- iOS Home Screen Icons & App Mode -->
   <link rel="apple-touch-icon" href="logo.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="ninga">
 
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       background-color: #000000;
       color: #FFFFFF;
-      font-family: Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       display: flex;
+      flex-direction: column;
       justify-content: center;
       align-items: center;
       min-height: 100vh;
       width: 100vw;
       overflow: hidden;
+      user-select: none;
     }
-    .app-container {
-      width: 600px;
-      height: 850px;
+
+    /* 1. Analyzer Section */
+    .analyzer-zone {
       display: flex;
       flex-direction: column;
       justify-content: center;
       align-items: center;
-      text-align: center;
       cursor: pointer;
-      user-select: none;
-      padding: 20px;
+      padding: 40px;
+      border-radius: 16px;
+      border: 2px dashed transparent;
+      transition: border 0.2s ease;
     }
-    .logo-container {
-      width: 512px;
-      height: 512px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      margin-bottom: 10px;
+    .analyzer-zone.drag-over {
+      border: 2px dashed #444;
+      background-color: #0a0a0a;
     }
     .logo-container img {
-      max-width: 512px;
-      max-height: 512px;
+      width: 150px;
+      height: 150px;
       object-fit: contain;
     }
     .logo-fallback { color: #FFFFFF; font-size: 16px; }
-    
-    /* Result Label for BPM/Key */
     .result-label {
       color: #FFFFFF;
-      font-size: 18px;
+      font-size: 14px;
       font-weight: bold;
-      margin-top: 10px;
-      line-height: 1.4;
-      word-break: break-word;
-    }
-    .app-container.drag-over {
-      outline: 2px dashed #ffffff;
-      border-radius: 12px;
+      margin-top: 30px;
+      text-align: center;
     }
 
-    /* Converter UI Styling */
-    .converter-section {
-      margin-top: 30px;
-      padding: 15px;
-      border: 1px solid #333;
-      border-radius: 8px;
-      width: 80%;
+    /* 2. Converter Section (Separated) */
+    .converter-box {
+      margin-top: 20px;
+      padding: 12px 30px;
+      border: 1px solid #222;
+      border-radius: 6px;
+      background-color: transparent;
       cursor: pointer;
-      transition: background 0.2s;
+      text-align: center;
+      transition: background-color 0.2s ease, border-color 0.2s ease;
     }
-    .converter-section:hover {
-      background-color: #111;
+    .converter-box:hover {
+      background-color: #0a0a0a;
+      border-color: #333;
     }
     .converter-title {
-      font-size: 16px;
+      color: #00e5ff; /* Cyan accent matching screenshot */
+      font-size: 13px;
       font-weight: bold;
-      margin-bottom: 5px;
-      color: #00ffcc; /* Subtle teal accent */
+      margin-bottom: 4px;
     }
     .converter-subtext {
-      font-size: 12px;
-      color: #888;
+      color: #666666;
+      font-size: 10px;
     }
 
-    #fileInput, #convertInput { display: none; }
+    /* Hidden Inputs */
+    #analyzeInput, #convertInput { display: none; }
   </style>
 </head>
 <body>
 
-  <div class="app-container" id="dropZone">
-    
-    <!-- Analyzer Area -->
+  <!-- ANALYZER UI -->
+  <div class="analyzer-zone" id="analyzerZone">
     <div class="logo-container">
       <img src="logo.png" alt="logo" onerror="this.style.display='none'; document.getElementById('fallback').style.display='block';">
       <span id="fallback" class="logo-fallback" style="display: none;">[ Logo Missing ]</span>
     </div>
-
-    <div class="result-label" id="resultLabel">
-      Drag &amp; Drop an audio file here
-    </div>
-    <input type="file" id="fileInput" accept=".wav,.mp3,.flac,.ogg,.m4a,audio/*">
-
-    <!-- Converter Area -->
-    <div class="converter-section" id="convertBtn">
-      <div class="converter-title">Click to convert files to HQ Audio</div>
-      <div class="converter-subtext">Supports MP4, MOV, WAV, FLAC, and more</div>
-    </div>
-    <input type="file" id="convertInput" accept="audio/*,video/*">
-    
+    <div class="result-label" id="resultLabel">Drag & Drop an audio file here</div>
   </div>
 
+  <!-- CONVERTER UI -->
+  <div class="converter-box" id="converterBox">
+    <div class="converter-title" id="converterTitle">Click to convert files to HQ Audio</div>
+    <div class="converter-subtext" id="converterSubtext">Supports MP4, MOV, WAV, FLAC, and more</div>
+  </div>
+
+  <!-- ISOLATED INPUTS -->
+  <input type="file" id="analyzeInput" accept=".wav,.mp3,.flac,.ogg,.m4a,audio/*">
+  <input type="file" id="convertInput" accept="audio/*,video/*">
+
   <script>
-    // --- BPM & KEY ANALYZER LOGIC ---
-    const dropZone = document.getElementById('dropZone');
-    const fileInput = document.getElementById('fileInput');
+    // --- 1. ANALYZER LOGIC ---
+    const analyzerZone = document.getElementById('analyzerZone');
+    const analyzeInput = document.getElementById('analyzeInput');
     const resultLabel = document.getElementById('resultLabel');
-    const validExtensions = ['.wav', '.mp3', '.flac', '.ogg', '.m4a'];
+    const validAudioExts = ['.wav', '.mp3', '.flac', '.ogg', '.m4a'];
 
-    dropZone.addEventListener('click', () => fileInput.click());
+    analyzerZone.addEventListener('click', () => analyzeInput.click());
 
-    fileInput.addEventListener('change', () => {
-      if (fileInput.files.length) handleFile(fileInput.files[0]);
+    analyzeInput.addEventListener('change', () => {
+      if (analyzeInput.files.length) handleAnalyzeFile(analyzeInput.files[0]);
     });
 
-    dropZone.addEventListener('dragover', (e) => {
+    analyzerZone.addEventListener('dragover', (e) => {
       e.preventDefault();
-      dropZone.classList.add('drag-over');
+      analyzerZone.classList.add('drag-over');
     });
 
-    ['dragleave', 'dragend'].forEach(eventType => {
-      dropZone.addEventListener(eventType, () => dropZone.classList.remove('drag-over'));
+    ['dragleave', 'dragend'].forEach(type => {
+      analyzerZone.addEventListener(type, () => analyzerZone.classList.remove('drag-over'));
     });
 
-    dropZone.addEventListener('drop', (e) => {
+    analyzerZone.addEventListener('drop', (e) => {
       e.preventDefault();
-      dropZone.classList.remove('drag-over');
-      if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+      analyzerZone.classList.remove('drag-over');
+      if (e.dataTransfer.files.length) handleAnalyzeFile(e.dataTransfer.files[0]);
     });
 
-    async function handleFile(file) {
+    async function handleAnalyzeFile(file) {
       const fileName = file.name.toLowerCase();
-      const isValid = validExtensions.some(ext => fileName.endsWith(ext));
+      const isValid = validAudioExts.some(ext => fileName.endsWith(ext));
 
       if (!isValid) {
         resultLabel.innerText = 'Unsupported file format!';
@@ -166,7 +154,6 @@
         const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
 
         const sampleRate = audioBuffer.sampleRate;
-        const startOffset = 0;
         const durationSamples = Math.min(15 * sampleRate, audioBuffer.length);
         
         const offlineCtx = new OfflineAudioContext(1, durationSamples, 22050);
@@ -179,38 +166,24 @@
         const wavBlob = audioBufferToWavBlob(renderedBuffer);
 
         resultLabel.innerText = 'Analyzing audio...';
-        uploadAndAnalyze(wavBlob);
-      } catch (err) {
-        console.error(err);
-        resultLabel.innerText = 'Error preparing file';
-      }
-    }
+        
+        const formData = new FormData();
+        formData.append('file', wavBlob, 'snippet.wav');
 
-    async function uploadAndAnalyze(blob) {
-      const formData = new FormData();
-      formData.append('file', blob, 'snippet.wav');
-
-      try {
         const response = await fetch('https://ninga-audio-api.onrender.com/analyze', {
           method: 'POST',
           body: formData
         });
 
-        if (!response.ok) {
-          throw new Error('Server returned an error');
-        }
-
+        if (!response.ok) throw new Error('Server error');
         const data = await response.json();
-
-        if (data.key) {
-          resultLabel.innerText = `${data.bpm}  |  ${data.key}`;
-        } else {
-          resultLabel.innerText = `${data.bpm}`;
-        }
-      } catch (error) {
-        console.error(error);
+        
+        resultLabel.innerText = data.key ? `${data.bpm} | ${data.key}` : `${data.bpm}`;
+      } catch (err) {
+        console.error(err);
         resultLabel.innerText = 'Error processing file';
       }
+      analyzeInput.value = ''; // Reset
     }
 
     function audioBufferToWavBlob(buffer) {
@@ -222,19 +195,10 @@
       function setUint16(data) { out.setUint16(pos, data, true); pos += 2; }
       function setUint32(data) { out.setUint32(pos, data, true); pos += 4; }
 
-      setUint32(0x46464952);
-      setUint32(length - 8);
-      setUint32(0x45564157);
-      setUint32(0x20746d66);
-      setUint32(16);
-      setUint16(1);
-      setUint16(numOfChan);
-      setUint32(buffer.sampleRate);
-      setUint32(buffer.sampleRate * 2 * numOfChan);
-      setUint16(numOfChan * 2);
-      setUint16(16);
-      setUint32(0x61746164);
-      setUint32(length - pos - 4);
+      setUint32(0x46464952); setUint32(length - 8); setUint32(0x45564157);
+      setUint32(0x20746d66); setUint32(16); setUint16(1); setUint16(numOfChan);
+      setUint32(buffer.sampleRate); setUint32(buffer.sampleRate * 2 * numOfChan);
+      setUint16(numOfChan * 2); setUint16(16); setUint32(0x61746164); setUint32(length - pos - 4);
 
       for (let i = 0; i < buffer.numberOfChannels; i++) channels.push(buffer.getChannelData(i));
 
@@ -242,33 +206,28 @@
         for (let i = 0; i < numOfChan; i++) {
           sample = Math.max(-1, Math.min(1, channels[i][offset]));
           sample = (0.5 + sample < 0 ? sample * 32768 : sample * 32767) | 0;
-          out.setInt16(pos, sample, true);
-          pos += 2;
+          out.setInt16(pos, sample, true); pos += 2;
         }
         offset++;
       }
-
       return new Blob([out.buffer], { type: 'audio/wav' });
     }
 
-    // --- FFMPEG CONVERTER LOGIC ---
-    const convertBtn = document.getElementById('convertBtn');
+    // --- 2. CONVERTER LOGIC ---
+    const converterBox = document.getElementById('converterBox');
     const convertInput = document.getElementById('convertInput');
+    const converterTitle = document.getElementById('converterTitle');
+    const converterSubtext = document.getElementById('converterSubtext');
 
-    // Important: e.stopPropagation() stops the click from hitting the dropZone behind it
-    convertBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      convertInput.click();
-    });
+    converterBox.addEventListener('click', () => convertInput.click());
 
     convertInput.addEventListener('change', async () => {
       if (!convertInput.files.length) return;
-      
       const file = convertInput.files[0];
       
-      // UI Updates for status
-      document.querySelector('.converter-title').innerText = 'Uploading & Converting... ⏳';
-      document.querySelector('.converter-subtext').innerText = 'This may take a moment for larger video/audio files.';
+      converterTitle.innerText = 'Converting... ⏳';
+      converterTitle.style.color = '#FFFFFF';
+      converterSubtext.innerText = 'This may take a moment.';
 
       const formData = new FormData();
       formData.append('file', file);
@@ -279,38 +238,34 @@
           body: formData
         });
 
-        if (!response.ok) throw new Error('Conversion failed on the server.');
+        if (!response.ok) throw new Error('Conversion failed');
 
-        // Trigger the automatic download
         const blob = await response.blob();
         const downloadUrl = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.style.display = 'none';
         a.href = downloadUrl;
         
-        // Retain original filename, swap extension to .mp3
         const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
         a.download = `${baseName}_HQ.mp3`;
         
         document.body.appendChild(a);
         a.click();
-        
         window.URL.revokeObjectURL(downloadUrl);
         
-        document.querySelector('.converter-title').innerText = '✅ Download Complete!';
-        document.querySelector('.converter-subtext').innerText = 'Click to convert another file.';
+        converterTitle.innerText = '✅ Download Complete!';
+        converterTitle.style.color = '#00e5ff';
+        converterSubtext.innerText = 'Click to convert another file.';
 
       } catch (error) {
         console.error(error);
-        document.querySelector('.converter-title').innerText = '❌ Error converting file';
-        document.querySelector('.converter-subtext').innerText = 'Check file format or size and try again.';
+        converterTitle.innerText = '❌ Error converting file';
+        converterTitle.style.color = '#ff4444';
+        converterSubtext.innerText = 'Check file format or size and try again.';
       }
-      
-      // Clear input so the same file can be converted again if needed
-      convertInput.value = '';
+      convertInput.value = ''; // Reset
     });
 
-    // Register Service Worker for PWABuilder App Stores
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js');
     }
