@@ -1,7 +1,12 @@
 import io
+import os
+import subprocess
+import tempfile
+import asyncio
 import librosa
 import numpy as np
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, UploadFile, BackgroundTasks
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
@@ -17,6 +22,12 @@ MAJOR_PROFILE = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.2
 MINOR_PROFILE = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 2.69, 3.34, 3.17, 3.18]
 PITCHES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
+def cleanup_temp_files(*filepaths):
+    """Deletes temporary files from the server after the download is sent."""
+    for filepath in filepaths:
+        if os.path.exists(filepath):
+            os.remove(filepath)
+
 @app.get("/")
 def health_check():
     return {"status": "ok"}
@@ -27,7 +38,7 @@ async def analyze_endpoint(file: UploadFile = File(...)):
         contents = await file.read()
         audio_stream = io.BytesIO(contents)
 
-        # Analyze strictly the FIRST 15 SECONDS (offset=0, duration=15)
+        # Analyze strictly the FIRST 15 SECONDS
         y, sr = librosa.load(audio_stream, sr=22050, offset=0, duration=15)
 
         # 1. Fast BPM Detection
@@ -64,3 +75,43 @@ async def analyze_endpoint(file: UploadFile = File(...)):
     except Exception as e:
         print("Error processing audio:", e)
         return {"bpm": "Error processing file", "key": ""}
+
+@app.post("/convert")
+async def convert_endpoint(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
+    """Accepts any audio/video file, converts it to 320kbps MP3 via FFmpeg, and returns it."""
+    try:
+        contents = await file.read()
+        
+        # Create temp files on the server to handle the ffmpeg process safely
+        fd_in, temp_in = tempfile.mkstemp(suffix=os.path.splitext(file.filename)[1])
+        fd_out, temp_out = tempfile.mkstemp(suffix=".mp3")
+        
+        os.close(fd_in)
+        os.close(fd_out)
+        
+        with open(temp_in, "wb") as f:
+            f.write(contents)
+            
+        # FFmpeg command: strip video (-vn), set audio bitrate to max 320k (-b:a 320k)
+        command = [
+            "ffmpeg", "-y", 
+            "-i", temp_in, 
+            "-vn", 
+            "-b:a", "320k", 
+            temp_out
+        ]
+        
+        # Run FFmpeg in a background thread so it doesn't freeze your web server
+        await asyncio.to_thread(subprocess.run, command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            
+        # Schedule cleanup to happen AFTER the user downloads the file
+        background_tasks.add_task(cleanup_temp_files, temp_in, temp_out)
+        
+        out_filename = os.path.splitext(file.filename)[0] + "_HQ.mp3"
+        return FileResponse(temp_out, media_type="audio/mpeg", filename=out_filename)
+        
+    except Exception as e:
+        print("Conversion error:", e)
+        # Clean up input if it fails early
+        cleanup_temp_files(temp_in, temp_out)
+        return {"error": "Failed to convert file"}
