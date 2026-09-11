@@ -131,11 +131,11 @@
     // Toggle Elements
     const modeBpm = document.getElementById('modeBpm');
     const modeConvert = document.getElementById('modeConvert');
-    let currentMode = 'bpm'; // Starts in BPM mode by default
+    let currentMode = 'bpm';
 
     // Handle Toggle Switching
     modeBpm.addEventListener('click', (e) => {
-      e.stopPropagation(); // Prevents the file picker from opening when clicking the toggle
+      e.stopPropagation();
       currentMode = 'bpm';
       modeBpm.classList.add('active');
       modeConvert.classList.remove('active');
@@ -144,7 +144,7 @@
     });
 
     modeConvert.addEventListener('click', (e) => {
-      e.stopPropagation(); // Prevents the file picker from opening
+      e.stopPropagation();
       currentMode = 'convert';
       modeConvert.classList.add('active');
       modeBpm.classList.remove('active');
@@ -174,14 +174,14 @@
       if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
     });
 
-    // Main Function that routes to Analyzer or Converter
+    // Main Routing Function
     async function handleFile(file) {
       if (currentMode === 'bpm') {
         await runAnalyzer(file);
       } else if (currentMode === 'convert') {
         await runConverter(file);
       }
-      fileInput.value = ''; // Reset input to allow re-uploading the same file
+      fileInput.value = '';
     }
 
     // --- 1. BPM & KEY ANALYZER FUNCTION ---
@@ -241,7 +241,6 @@
 
       const formData = new FormData();
       formData.append('file', file);
-      // Assumes your Python backend defaults to mp3 or reads this form data
       formData.append('target_format', 'mp3'); 
 
       try {
@@ -267,7 +266,6 @@
         
         resultLabel.innerText = '✅ Download Complete!';
         
-        // Reset label after 3 seconds
         setTimeout(() => {
           if(currentMode === 'convert') {
              resultLabel.innerText = 'Drag & Drop an MP4 to convert to MP3';
@@ -280,7 +278,7 @@
       }
     }
 
-    // WAV Blob helper for BPM tool
+    // WAV Blob helper
     function audioBufferToWavBlob(buffer) {
       const numOfChan = buffer.numberOfChannels;
       const length = buffer.length * numOfChan * 2 + 44;
@@ -306,6 +304,11 @@
         offset++;
       }
       return new Blob([out.buffer], { type: 'audio/wav' });
+    }
+
+    // Register Service Worker
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js');
     }
   </script>
 </body>
