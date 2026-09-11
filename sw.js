@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ninga-cache-v3';
+const CACHE_NAME = 'ninga-cache-v4';
 const urlsToCache = [
   './',
   './index.html',
@@ -7,7 +7,7 @@ const urlsToCache = [
 ];
 
 self.addEventListener('install', event => {
-  self.skipWaiting(); // Forces the browser to activate this new version immediately
+  self.skipWaiting(); // Forces the browser to activate this new version immediately[cite: 1]
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => cache.addAll(urlsToCache))
@@ -19,7 +19,7 @@ self.addEventListener('activate', event => {
     caches.keys().then(cacheNames => {
       return Promise.all(
         cacheNames.map(cacheName => {
-          // Deletes the old converter cache
+          // Deletes the old cache so returning users see the new update[cite: 1]
           if (cacheName !== CACHE_NAME) {
             return caches.delete(cacheName);
           }
@@ -27,7 +27,7 @@ self.addEventListener('activate', event => {
       );
     })
   );
-  self.clients.claim(); // Takes control of the webpage immediately
+  self.clients.claim(); // Takes control of the webpage immediately[cite: 1]
 });
 
 self.addEventListener('fetch', event => {
