@@ -27,11 +27,13 @@
       align-items: center;
       min-height: 100vh;
       width: 100vw;
-      overflow: hidden;
+      overflow-x: hidden;
+      overflow-y: auto;
+      padding: 20px 0;
     }
     .app-container {
       width: 400px;
-      height: 500px;
+      min-height: 520px;
       display: flex;
       flex-direction: column;
       justify-content: center;
@@ -43,16 +45,16 @@
       position: relative;
     }
     .logo-container {
-      width: 200px;
-      height: 200px;
+      width: 180px;
+      height: 180px;
       display: flex;
       justify-content: center;
       align-items: center;
-      margin-bottom: 20px;
+      margin-bottom: 15px;
     }
     .logo-container img {
-      max-width: 200px;
-      max-height: 200px;
+      max-width: 180px;
+      max-height: 180px;
       object-fit: contain;
     }
     .logo-fallback { color: #FFFFFF; font-size: 16px; }
@@ -61,7 +63,7 @@
       color: #FFFFFF;
       font-size: 18px;
       font-weight: bold;
-      margin-top: 20px;
+      margin-top: 15px;
       line-height: 1.4;
       word-break: break-word;
       min-height: 25px;
@@ -72,11 +74,11 @@
       border-radius: 12px;
     }
 
-    /* Minimal Toggle Feature */
+    /* Mode Toggle Feature */
     .toggle-container {
       display: flex;
       gap: 10px;
-      margin-top: 40px;
+      margin-top: 30px;
       background-color: #111;
       padding: 6px;
       border-radius: 30px;
@@ -99,6 +101,69 @@
       color: #000000;
     }
 
+    /* Ask Google Search Section */
+    .search-container {
+      width: 100%;
+      max-width: 320px;
+      margin-top: 30px;
+      padding: 14px;
+      background-color: #0d0d0d;
+      border: 1px solid #222;
+      border-radius: 12px;
+      text-align: left;
+      cursor: default;
+      z-index: 10;
+    }
+    .search-header {
+      font-size: 12px;
+      font-weight: bold;
+      letter-spacing: 0.5px;
+      color: #4285F4; /* Google Blue */
+      margin-bottom: 8px;
+      text-transform: uppercase;
+    }
+    .search-input-row {
+      display: flex;
+      gap: 8px;
+    }
+    #searchInput {
+      flex: 1;
+      background-color: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 6px;
+      color: #fff;
+      padding: 8px 12px;
+      font-size: 13px;
+      outline: none;
+    }
+    #searchInput:focus {
+      border-color: #4285F4;
+    }
+    #searchBtn {
+      background-color: #4285F4;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    #searchBtn:hover {
+      background-color: #3367d6;
+    }
+    #searchResult {
+      margin-top: 10px;
+      font-size: 13px;
+      color: #bbb;
+      line-height: 1.45;
+      max-height: 160px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
     #fileInput { display: none; }
   </style>
 </head>
@@ -114,10 +179,20 @@
       Drag & Drop an audio file here
     </div>
 
-    <!-- Toggle Feature Below Drag & Drop -->
+    <!-- Mode Toggle -->
     <div class="toggle-container" id="toggleContainer">
       <div class="toggle-btn active" id="modeBpm">BPM & Key</div>
       <div class="toggle-btn" id="modeConvert">MP4 to MP3</div>
+    </div>
+
+    <!-- Ask Google Feature -->
+    <div class="search-container" id="searchContainer">
+      <div class="search-header">Ask Google</div>
+      <div class="search-input-row">
+        <input type="text" id="searchInput" placeholder="Search the web...">
+        <button id="searchBtn" type="button">Search</button>
+      </div>
+      <div id="searchResult"></div>
     </div>
 
     <input type="file" id="fileInput" accept=".wav,.mp3,.flac,.ogg,.m4a,audio/*">
@@ -237,8 +312,6 @@
 
     // --- 2. MP4 TO MP3 CONVERTER FUNCTION ---
     async function runConverter(file) {
-      // Safety Check: Render blocks files over 100MB. 
-      // We use 95MB to leave room for the FormData network headers.
       const maxSize = 95 * 1024 * 1024; 
       if (file.size > maxSize) {
         resultLabel.innerText = '❌ File too large (Max 95MB)';
@@ -253,8 +326,6 @@
       resultLabel.innerText = 'Preparing file... ⏳';
 
       try {
-        // BUG FIX: Mobile browsers often drop fetch requests containing raw mobile File objects.
-        // We read it into a generic Blob in browser memory first (just like the Analyzer does).
         const fileBuffer = await file.arrayBuffer();
         const safeBlob = new Blob([fileBuffer], { type: file.type || 'application/octet-stream' });
         const safeName = file.name || 'mobile_upload.mp4';
@@ -262,7 +333,6 @@
         resultLabel.innerText = 'Uploading & Converting... ⏳';
 
         const formData = new FormData();
-        // Explicitly attach the safe name so the Python backend doesn't crash
         formData.append('file', safeBlob, safeName);
         formData.append('target_format', 'mp3'); 
 
@@ -296,10 +366,56 @@
 
       } catch (error) {
         console.error(error);
-        // This will now print the exact system error text to your screen if it fails
         resultLabel.innerText = '❌ ' + (error.message || 'Error converting file');
       }
     }
+
+    // --- 3. ASK GOOGLE / GEMINI LOGIC ---
+    const searchContainer = document.getElementById('searchContainer');
+    const searchInput = document.getElementById('searchInput');
+    const searchBtn = document.getElementById('searchBtn');
+    const searchResult = document.getElementById('searchResult');
+
+    // Prevent clicking inside the search box from popping up the file uploader
+    searchContainer.addEventListener('click', (e) => e.stopPropagation());
+
+    async function executeSearch() {
+      const query = searchInput.value.trim();
+      if (!query) return;
+
+      searchResult.innerText = "Searching Google... ⏳";
+      searchBtn.disabled = true;
+
+      const formData = new FormData();
+      formData.append('query', query);
+
+      try {
+        const res = await fetch('https://ninga-audio-api.onrender.com/ask-google', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!res.ok) throw new Error('Server returned an error');
+
+        const data = await res.json();
+        searchResult.innerText = data.answer || "No response received.";
+      } catch (err) {
+        console.error(err);
+        searchResult.innerText = "❌ Search failed. Check server logs.";
+      } finally {
+        searchBtn.disabled = false;
+      }
+    }
+
+    searchBtn.addEventListener('click', executeSearch);
+
+    // Allow pressing "Enter" in the input to search
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        executeSearch();
+      }
+    });
 
     // WAV Blob helper
     function audioBufferToWavBlob(buffer) {

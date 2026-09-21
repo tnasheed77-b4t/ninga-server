@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ninga-cache-v5';
+const CACHE_NAME = 'ninga-cache-v6';
 const urlsToCache = [
   './',
   './index.html',
