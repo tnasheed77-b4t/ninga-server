@@ -46,20 +46,18 @@ async def ask_google_endpoint(query: str = Form(...)):
     """Sends a user's search query to Gemini grounded with live Google Search."""
     try:
         response = client.models.generate_content(
-            model="gemini-2.0-flash",  # <-- Fixed model name
+            model="gemini-3.6-flash",  # <-- Updated to the newest supported version
             contents=query,
             config=types.GenerateContentConfig(
                 tools=[{"google_search": {}}]
             )
         )
-        # Check if response text is valid (sometimes blocked by safety settings)
         if not response.text:
             return {"answer": "Search returned an empty response. Try a different query."}
             
         return {"answer": response.text}
     except Exception as e:
         print(f"Google Search Error: {e}")
-        # Return the exact error string so you can debug it on the frontend
         return {"answer": f"Search Error: {str(e)}"}
 
 # --- 2. BPM & KEY ANALYZER ENDPOINT ---
