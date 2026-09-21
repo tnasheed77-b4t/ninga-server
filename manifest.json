@@ -2,7 +2,7 @@
   "id": "/?source=pwa",
   "name": "ninga",
   "short_name": "ninga",
-  "description": "Drag and drop files to instantly detect BPM and musical key, or convert video and audio files into high-quality MP3s.",
+  "description": "Drag and drop files to instantly detect BPM and musical key, convert media into high-quality MP3s, or search the web instantly with DuckDuckGo.",
   "start_url": "./",
   "display": "standalone",
   "orientation": "portrait",

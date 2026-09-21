@@ -5,6 +5,9 @@ import tempfile
 import asyncio
 import librosa
 import numpy as np
+import urllib.request
+import urllib.parse
+import json
 from fastapi import FastAPI, File, UploadFile, Form, BackgroundTasks
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -35,6 +38,40 @@ def cleanup_temp_files(*filepaths):
 def health_check():
     return {"status": "ok"}
 
+# --- 1. DUCKDUCKGO SEARCH ENDPOINT ---
+@app.post("/ask")
+async def ask_endpoint(query: str = Form(...)):
+    """Fetches an instant answer from DuckDuckGo's free API."""
+    try:
+        safe_query = urllib.parse.quote(query)
+        url = f"https://api.duckduckgo.com/?q={safe_query}&format=json&no_html=1"
+        
+        # DuckDuckGo requires a user-agent header
+        req = urllib.request.Request(url, headers={'User-Agent': 'ninga-app'})
+        with urllib.request.urlopen(req) as response:
+            data = json.loads(response.read())
+        
+        # Try to get the main abstract text
+        answer = data.get("AbstractText")
+        
+        # If no main abstract, try the first related topic
+        if not answer:
+            topics = data.get("RelatedTopics", [])
+            for topic in topics:
+                if "Text" in topic:
+                    answer = topic["Text"]
+                    break
+        
+        # Fallback if the query is too vague for the Instant Answer API
+        if not answer:
+            answer = "DuckDuckGo couldn't find a direct summary for this. Try searching for a specific noun, person, or topic."
+            
+        return {"answer": answer}
+    except Exception as e:
+        print(f"Search Error: {e}")
+        return {"answer": f"Search Error: Could not connect to DuckDuckGo."}
+
+# --- 2. BPM & KEY ANALYZER ENDPOINT ---
 @app.post("/analyze")
 async def analyze_endpoint(file: UploadFile = File(...)):
     try:
@@ -76,6 +113,7 @@ async def analyze_endpoint(file: UploadFile = File(...)):
         print("Error processing audio:", e)
         return {"bpm": "Error processing file", "key": ""}
 
+# --- 3. MP4 TO MP3 CONVERTER ENDPOINT ---
 @app.post("/convert")
 async def convert_endpoint(
     background_tasks: BackgroundTasks, 
