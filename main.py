@@ -8,8 +8,6 @@ import numpy as np
 from fastapi import FastAPI, File, UploadFile, Form, BackgroundTasks
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
-from google import genai
-from google.genai import types
 
 app = FastAPI()
 
@@ -24,9 +22,6 @@ MAJOR_PROFILE = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.2
 MINOR_PROFILE = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 2.69, 3.34, 3.17, 3.18]
 PITCHES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
-# Initialize the Gemini client
-client = genai.Client()
-
 def cleanup_temp_files(*filepaths):
     """Deletes temporary files from the server after the download is sent."""
     for path in filepaths:
@@ -40,27 +35,6 @@ def cleanup_temp_files(*filepaths):
 def health_check():
     return {"status": "ok"}
 
-# --- 1. ASK GOOGLE (GEMINI) ENDPOINT ---
-@app.post("/ask-google")
-async def ask_google_endpoint(query: str = Form(...)):
-    """Sends a user's search query to Gemini grounded with live Google Search."""
-    try:
-        response = client.models.generate_content(
-            model="gemini-3.6-flash",  # <-- Updated to the newest supported version
-            contents=query,
-            config=types.GenerateContentConfig(
-                tools=[{"google_search": {}}]
-            )
-        )
-        if not response.text:
-            return {"answer": "Search returned an empty response. Try a different query."}
-            
-        return {"answer": response.text}
-    except Exception as e:
-        print(f"Google Search Error: {e}")
-        return {"answer": f"Search Error: {str(e)}"}
-
-# --- 2. BPM & KEY ANALYZER ENDPOINT ---
 @app.post("/analyze")
 async def analyze_endpoint(file: UploadFile = File(...)):
     try:
@@ -102,7 +76,6 @@ async def analyze_endpoint(file: UploadFile = File(...)):
         print("Error processing audio:", e)
         return {"bpm": "Error processing file", "key": ""}
 
-# --- 3. MP4 TO MP3 CONVERTER ENDPOINT ---
 @app.post("/convert")
 async def convert_endpoint(
     background_tasks: BackgroundTasks, 

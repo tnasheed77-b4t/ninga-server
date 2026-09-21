@@ -5,12 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ninga</title>
 
-  <!-- Android / PWA Manifest & Theme -->
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#000000">
   <link rel="icon" type="image/png" href="logo.png">
 
-  <!-- iOS Home Screen Icons & App Mode -->
   <link rel="apple-touch-icon" href="logo.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
@@ -27,13 +25,11 @@
       align-items: center;
       min-height: 100vh;
       width: 100vw;
-      overflow-x: hidden;
-      overflow-y: auto;
-      padding: 20px 0;
+      overflow: hidden;
     }
     .app-container {
       width: 400px;
-      min-height: 520px;
+      height: 500px;
       display: flex;
       flex-direction: column;
       justify-content: center;
@@ -45,16 +41,16 @@
       position: relative;
     }
     .logo-container {
-      width: 180px;
-      height: 180px;
+      width: 200px;
+      height: 200px;
       display: flex;
       justify-content: center;
       align-items: center;
-      margin-bottom: 15px;
+      margin-bottom: 20px;
     }
     .logo-container img {
-      max-width: 180px;
-      max-height: 180px;
+      max-width: 200px;
+      max-height: 200px;
       object-fit: contain;
     }
     .logo-fallback { color: #FFFFFF; font-size: 16px; }
@@ -63,7 +59,7 @@
       color: #FFFFFF;
       font-size: 18px;
       font-weight: bold;
-      margin-top: 15px;
+      margin-top: 20px;
       line-height: 1.4;
       word-break: break-word;
       min-height: 25px;
@@ -74,11 +70,10 @@
       border-radius: 12px;
     }
 
-    /* Mode Toggle Feature */
     .toggle-container {
       display: flex;
       gap: 10px;
-      margin-top: 30px;
+      margin-top: 40px;
       background-color: #111;
       padding: 6px;
       border-radius: 30px;
@@ -101,64 +96,6 @@
       color: #000000;
     }
 
-    /* Ask Google Search Section (Matched to Toggle Style) */
-    .search-container {
-      width: 100%;
-      max-width: 320px;
-      margin-top: 30px;
-      z-index: 10;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-    .search-input-row {
-      display: flex;
-      width: 100%;
-      background-color: #111;
-      padding: 6px;
-      border-radius: 30px;
-    }
-    #searchInput {
-      flex: 1;
-      background-color: transparent;
-      border: none;
-      color: #FFFFFF;
-      padding: 8px 16px;
-      font-size: 12px;
-      outline: none;
-      font-weight: bold;
-    }
-    #searchInput::placeholder {
-      color: #666;
-      font-weight: normal;
-    }
-    #searchBtn {
-      background-color: #FFFFFF;
-      color: #000000;
-      border: none;
-      padding: 8px 20px;
-      border-radius: 20px;
-      font-size: 12px;
-      font-weight: bold;
-      cursor: pointer;
-      transition: all 0.3s ease;
-    }
-    #searchBtn:hover {
-      background-color: #ccc;
-    }
-    #searchResult {
-      margin-top: 15px;
-      font-size: 13px;
-      color: #bbb;
-      line-height: 1.5;
-      max-height: 160px;
-      overflow-y: auto;
-      white-space: pre-wrap;
-      word-break: break-word;
-      text-align: center;
-      padding: 0 10px;
-    }
-
     #fileInput { display: none; }
   </style>
 </head>
@@ -174,19 +111,9 @@
       Drag & Drop an audio file here
     </div>
 
-    <!-- Mode Toggle -->
     <div class="toggle-container" id="toggleContainer">
       <div class="toggle-btn active" id="modeBpm">BPM & Key</div>
       <div class="toggle-btn" id="modeConvert">MP4 to MP3</div>
-    </div>
-
-    <!-- Ask Google Feature -->
-    <div class="search-container" id="searchContainer">
-      <div class="search-input-row">
-        <input type="text" id="searchInput" placeholder="Ask google...">
-        <button id="searchBtn" type="button">Search</button>
-      </div>
-      <div id="searchResult"></div>
     </div>
 
     <input type="file" id="fileInput" accept=".wav,.mp3,.flac,.ogg,.m4a,audio/*">
@@ -197,12 +124,10 @@
     const fileInput = document.getElementById('fileInput');
     const resultLabel = document.getElementById('resultLabel');
     
-    // Toggle Elements
     const modeBpm = document.getElementById('modeBpm');
     const modeConvert = document.getElementById('modeConvert');
     let currentMode = 'bpm';
 
-    // Handle Toggle Switching
     modeBpm.addEventListener('click', (e) => {
       e.stopPropagation();
       currentMode = 'bpm';
@@ -221,7 +146,6 @@
       fileInput.setAttribute('accept', 'video/mp4,video/mov,audio/*,video/*');
     });
 
-    // File Input Triggers
     dropZone.addEventListener('click', () => fileInput.click());
 
     fileInput.addEventListener('change', () => {
@@ -243,7 +167,6 @@
       if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
     });
 
-    // Main Routing Function
     async function handleFile(file) {
       if (currentMode === 'bpm') {
         await runAnalyzer(file);
@@ -253,7 +176,6 @@
       fileInput.value = '';
     }
 
-    // --- 1. BPM & KEY ANALYZER FUNCTION ---
     async function runAnalyzer(file) {
       const validExtensions = ['.wav', '.mp3', '.flac', '.ogg', '.m4a'];
       const fileName = file.name.toLowerCase();
@@ -304,7 +226,6 @@
       }
     }
 
-    // --- 2. MP4 TO MP3 CONVERTER FUNCTION ---
     async function runConverter(file) {
       const maxSize = 95 * 1024 * 1024; 
       if (file.size > maxSize) {
@@ -364,56 +285,6 @@
       }
     }
 
-    // --- 3. ASK GOOGLE / GEMINI LOGIC ---
-    const searchContainer = document.getElementById('searchContainer');
-    const searchInput = document.getElementById('searchInput');
-    const searchBtn = document.getElementById('searchBtn');
-    const searchResult = document.getElementById('searchResult');
-
-    // Prevent clicking inside the search box from popping up the file uploader
-    searchContainer.addEventListener('click', (e) => e.stopPropagation());
-
-    async function executeSearch() {
-      const query = searchInput.value.trim();
-      if (!query) return;
-
-      searchResult.innerText = "Searching Google... ⏳";
-      searchBtn.disabled = true;
-
-      const formData = new FormData();
-      formData.append('query', query);
-
-      try {
-        const res = await fetch('https://ninga-audio-api.onrender.com/ask-google', {
-          method: 'POST',
-          body: formData
-        });
-
-        if (!res.ok) throw new Error('Server returned an error');
-
-        const data = await res.json();
-        
-        // This will now print EXACTLY what went wrong if the API key failed
-        searchResult.innerText = data.answer || "No response received.";
-      } catch (err) {
-        console.error(err);
-        searchResult.innerText = "❌ Search request failed. Check server connection.";
-      } finally {
-        searchBtn.disabled = false;
-      }
-    }
-
-    searchBtn.addEventListener('click', executeSearch);
-
-    // Allow pressing "Enter" in the input to search
-    searchInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        executeSearch();
-      }
-    });
-
-    // WAV Blob helper
     function audioBufferToWavBlob(buffer) {
       const numOfChan = buffer.numberOfChannels;
       const length = buffer.length * numOfChan * 2 + 44;
@@ -441,7 +312,6 @@
       return new Blob([out.buffer], { type: 'audio/wav' });
     }
 
-    // Register Service Worker
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js');
     }
