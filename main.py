@@ -24,7 +24,7 @@ MAJOR_PROFILE = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.2
 MINOR_PROFILE = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 2.69, 3.34, 3.17, 3.18]
 PITCHES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
-# Initialize the Gemini client (It will automatically find your GEMINI_API_KEY environment variable)
+# Initialize the Gemini client
 client = genai.Client()
 
 def cleanup_temp_files(*filepaths):
@@ -49,14 +49,18 @@ async def ask_google_endpoint(query: str = Form(...)):
             model="gemini-2.5-flash",
             contents=query,
             config=types.GenerateContentConfig(
-                # Built-in tool that allows Gemini to search the live web
-                tools=[types.Tool(google_search=types.GoogleSearch())]
+                tools=[{"google_search": {}}]
             )
         )
+        # Check if response text is valid (sometimes blocked by safety settings)
+        if not response.text:
+            return {"answer": "Search returned an empty response. Try a different query."}
+            
         return {"answer": response.text}
     except Exception as e:
         print(f"Google Search Error: {e}")
-        return {"answer": "Sorry, could not search the web right now."}
+        # Return the exact error string so you can debug it on the frontend
+        return {"answer": f"Search Error: {str(e)}"}
 
 # --- 2. BPM & KEY ANALYZER ENDPOINT ---
 @app.post("/analyze")
@@ -65,15 +69,12 @@ async def analyze_endpoint(file: UploadFile = File(...)):
         contents = await file.read()
         audio_stream = io.BytesIO(contents)
 
-        # Analyze strictly the FIRST 15 SECONDS (offset=0, duration=15)
         y, sr = librosa.load(audio_stream, sr=22050, offset=0, duration=15)
 
-        # Fast BPM Detection
         tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
         bpm_val = float(np.mean(tempo))
         bpm_str = f"{round(bpm_val)} BPM"
 
-        # Fast Key Detection using Chromagram
         chroma = librosa.feature.chroma_stft(y=y, sr=sr)
         chroma_vals = np.sum(chroma, axis=1)
 
@@ -116,7 +117,6 @@ async def convert_endpoint(
         contents = await file.read()
         in_suffix = os.path.splitext(file.filename)[1] or ".tmp"
         
-        # Create temp files on the server to handle the ffmpeg process safely
         fd_in, temp_in = tempfile.mkstemp(suffix=in_suffix)
         fd_out, temp_out = tempfile.mkstemp(suffix=".mp3")
         
@@ -126,7 +126,6 @@ async def convert_endpoint(
         with open(temp_in, "wb") as f:
             f.write(contents)
             
-        # FFmpeg command: strip video (-vn), set audio bitrate to max 320k (-b:a 320k)
         command = [
             "ffmpeg", "-y", 
             "-i", temp_in, 
@@ -135,10 +134,8 @@ async def convert_endpoint(
             temp_out
         ]
         
-        # Run FFmpeg in a background thread so it doesn't freeze the web server
         await asyncio.to_thread(subprocess.run, command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             
-        # Schedule cleanup to happen AFTER the user downloads the file
         background_tasks.add_task(cleanup_temp_files, temp_in, temp_out)
         
         out_filename = f"{os.path.splitext(file.filename)[0]}_HQ.mp3"
