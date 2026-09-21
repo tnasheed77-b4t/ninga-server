@@ -46,7 +46,7 @@ async def ask_google_endpoint(query: str = Form(...)):
     """Sends a user's search query to Gemini grounded with live Google Search."""
     try:
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemini-2.0-flash",  # <-- Fixed model name
             contents=query,
             config=types.GenerateContentConfig(
                 tools=[{"google_search": {}}]
