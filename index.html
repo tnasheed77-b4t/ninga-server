@@ -101,7 +101,7 @@
       color: #000000;
     }
 
-    /* DuckDuckGo Search Section */
+    /* Gemini Search Section */
     .search-container {
       width: 100%;
       max-width: 320px;
@@ -180,10 +180,11 @@
       <div class="toggle-btn" id="modeConvert">MP4 to MP3</div>
     </div>
 
-    <!-- DuckDuckGo Feature -->
+    <!-- Gemini Feature -->
     <div class="search-container" id="searchContainer">
       <div class="search-input-row">
-        <input type="text" id="searchInput" placeholder="Search DuckDuckGo...">
+        <!-- Changed placeholder text -->
+        <input type="text" id="searchInput" placeholder="Ask Gemini...">
         <button id="searchBtn" type="button">Search</button>
       </div>
       <div id="searchResult"></div>
@@ -364,7 +365,7 @@
       }
     }
 
-    // --- 3. DUCKDUCKGO SEARCH LOGIC ---
+    // --- 3. GEMINI SEARCH LOGIC ---
     const searchContainer = document.getElementById('searchContainer');
     const searchInput = document.getElementById('searchInput');
     const searchBtn = document.getElementById('searchBtn');
@@ -377,7 +378,8 @@
       const query = searchInput.value.trim();
       if (!query) return;
 
-      searchResult.innerText = "Searching DuckDuckGo... ⏳";
+      // Changed loading text
+      searchResult.innerText = "Asking Gemini... ⏳";
       searchBtn.disabled = true;
 
       const formData = new FormData();

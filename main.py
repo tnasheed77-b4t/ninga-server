@@ -5,12 +5,11 @@ import tempfile
 import asyncio
 import librosa
 import numpy as np
-import urllib.request
-import urllib.parse
-import json
 from fastapi import FastAPI, File, UploadFile, Form, BackgroundTasks
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+from google import genai
+from google.genai import types
 
 app = FastAPI()
 
@@ -25,6 +24,9 @@ MAJOR_PROFILE = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.2
 MINOR_PROFILE = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 2.69, 3.34, 3.17, 3.18]
 PITCHES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
+# Initialize the Gemini client (It will automatically find your GEMINI_API_KEY environment variable)
+client = genai.Client()
+
 def cleanup_temp_files(*filepaths):
     """Deletes temporary files from the server after the download is sent."""
     for path in filepaths:
@@ -38,38 +40,27 @@ def cleanup_temp_files(*filepaths):
 def health_check():
     return {"status": "ok"}
 
-# --- 1. DUCKDUCKGO SEARCH ENDPOINT ---
+# --- 1. GEMINI SEARCH ENDPOINT (Replaces DuckDuckGo) ---
 @app.post("/ask")
 async def ask_endpoint(query: str = Form(...)):
-    """Fetches an instant answer from DuckDuckGo's free API."""
+    """Sends a user's search query to Gemini grounded with live Google Search."""
     try:
-        safe_query = urllib.parse.quote(query)
-        url = f"https://api.duckduckgo.com/?q={safe_query}&format=json&no_html=1"
+        response = client.models.generate_content(
+            model="gemini-3.6-flash",
+            contents=query,
+            config=types.GenerateContentConfig(
+                # Built-in tool that allows Gemini to search the live web
+                tools=[types.Tool(google_search=types.GoogleSearch())]
+            )
+        )
         
-        # DuckDuckGo requires a user-agent header
-        req = urllib.request.Request(url, headers={'User-Agent': 'ninga-app'})
-        with urllib.request.urlopen(req) as response:
-            data = json.loads(response.read())
-        
-        # Try to get the main abstract text
-        answer = data.get("AbstractText")
-        
-        # If no main abstract, try the first related topic
-        if not answer:
-            topics = data.get("RelatedTopics", [])
-            for topic in topics:
-                if "Text" in topic:
-                    answer = topic["Text"]
-                    break
-        
-        # Fallback if the query is too vague for the Instant Answer API
-        if not answer:
-            answer = "DuckDuckGo couldn't find a direct summary for this. Try searching for a specific noun, person, or topic."
+        if not response.text:
+            return {"answer": "Search returned an empty response. Try a different query."}
             
-        return {"answer": answer}
+        return {"answer": response.text}
     except Exception as e:
-        print(f"Search Error: {e}")
-        return {"answer": f"Search Error: Could not connect to DuckDuckGo."}
+        print(f"Google Search Error: {e}")
+        return {"answer": f"Search Error: {str(e)}"}
 
 # --- 2. BPM & KEY ANALYZER ENDPOINT ---
 @app.post("/analyze")
