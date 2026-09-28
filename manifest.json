@@ -1,7 +1,7 @@
 {
   "id": "/?source=pwa",
-  "name": "ninga",
-  "short_name": "ninga",
+  "name": "Ninga",
+  "short_name": "Ninga",
   "description": "Drag and drop files to instantly detect BPM and musical key, convert media into high-quality MP3s, or search the web with Gemini AI.",
   "start_url": "./",
   "display": "standalone",
