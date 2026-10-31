@@ -7,7 +7,6 @@ import asyncio
 import librosa
 import numpy as np
 import yt_dlp  # type: ignore
-from yt_dlp.networking.impersonate import ImpersonateTarget  # type: ignore
 from fastapi import FastAPI, File, UploadFile, Form, BackgroundTasks
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -97,7 +96,7 @@ async def ask_endpoint(query: str = Form(...)):
         print(f"Google Search Error: {e}")
         return {"answer": f"Search Error: {str(e)}"}
 
-# --- 2. YT-DLP + FFMPEG LINK DOWNLOADER (WITH YOUR CONFIG.TXT SETTINGS) ---
+# --- 2. YT-DLP + FFMPEG LINK DOWNLOADER & AUTO BPM/KEY ENDPOINT ---
 @app.post("/download_url")
 async def download_url_endpoint(
     background_tasks: BackgroundTasks,
@@ -109,18 +108,21 @@ async def download_url_endpoint(
         fmt = "wav" if target_format.lower().strip() == "wav" else "mp3"
         out_tmpl = os.path.join(temp_dir, "audio_download.%(ext)s")
 
-        # Matches your config.txt settings (--impersonate chrome, -4, --no-mtime, --no-warnings, etc.)
         ydl_opts = {
             'format': 'bestaudio/best',
             'outtmpl': out_tmpl,
             'noplaylist': True,
             'quiet': True,
-            'no_warnings': True,            # --no-warnings
-            'source_address': '0.0.0.0',    # -4 (Force IPv4)
-            'updatetime': False,            # --no-mtime
-            'cachedir': False,              # --rm-cache-dir
-            'check_formats': 'selected',    # --check-formats
-            'impersonate': ImpersonateTarget('chrome'),  # --impersonate chrome
+            'no_warnings': True,
+            'source_address': '0.0.0.0',  # -4 (Force IPv4)
+            'updatetime': False,          # --no-mtime
+            'cachedir': False,            # --rm-cache-dir
+            'nocheckcertificate': True,
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['ios', 'web']
+                }
+            },
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': fmt,
@@ -128,8 +130,14 @@ async def download_url_endpoint(
             }],
         }
 
-        # Automatically load cookies.txt (from project folder or Render Secret Files)
-        # We copy it to temp_dir first so yt-dlp can update cookies without read-only errors
+        # Enable Chrome impersonation safely ONLY if yt-dlp supports it
+        try:
+            from yt_dlp.networking.impersonate import ImpersonateTarget  # type: ignore
+            ydl_opts['impersonate'] = ImpersonateTarget.from_str('chrome')
+        except Exception:
+            pass
+
+        # Load cookies.txt if available (copied to temp_dir so yt-dlp can write safely)
         cookie_locations = ["cookies.txt", "/etc/secrets/cookies.txt", r"C:\Users\TJ\cookies.txt"]
         for c_path in cookie_locations:
             if os.path.exists(c_path):
@@ -139,14 +147,28 @@ async def download_url_endpoint(
                 break
 
         def download_and_extract():
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=True)
-                return info.get('title', 'ninga_audio')
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(url, download=True)
+                    return info.get('title', 'ninga_audio')
+            except Exception:
+                # Fallback: Retry without impersonate in case curl_cffi failed on this host
+                ydl_opts.pop('impersonate', None)
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(url, download=True)
+                    return info.get('title', 'ninga_audio')
 
         title = await asyncio.to_thread(download_and_extract)
         final_file = os.path.join(temp_dir, f"audio_download.{fmt}")
 
-        # Automatically detect BPM & Key
+        if not os.path.exists(final_file):
+            # Locate whichever audio file FFmpeg produced
+            for fname in os.listdir(temp_dir):
+                if fname.startswith("audio_download"):
+                    final_file = os.path.join(temp_dir, fname)
+                    break
+
+        # Detect BPM & Key on the converted audio
         bpm_str, detected_key = await asyncio.to_thread(detect_bpm_and_key, final_file)
 
         safe_title = "".join(c for c in title if c.isascii() and (c.isalnum() or c in (' ', '-', '_'))).strip() or "ninga_track"
@@ -165,7 +187,7 @@ async def download_url_endpoint(
     except Exception as e:
         print("yt-dlp download error:", e)
         cleanup_temp_files(temp_dir)
-        return JSONResponse(status_code=400, content={"error": f"Failed to download link: {str(e)}"})
+        return JSONResponse(status_code=400, content={"error": str(e)})
 
 # --- 3. BPM & KEY ANALYZER ENDPOINT ---
 @app.post("/analyze")
