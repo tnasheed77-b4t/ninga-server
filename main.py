@@ -7,6 +7,7 @@ import asyncio
 import librosa
 import numpy as np
 import yt_dlp  # type: ignore
+from yt_dlp.networking.impersonate import ImpersonateTarget  # type: ignore
 from fastapi import FastAPI, File, UploadFile, Form, BackgroundTasks
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,7 +16,6 @@ from google.genai import types
 
 app = FastAPI()
 
-# Expose custom headers (X-BPM, X-Key, X-Title) so the Web App & Chrome Extension can read them
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -28,7 +28,6 @@ MAJOR_PROFILE = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.2
 MINOR_PROFILE = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 2.69, 3.34, 3.17, 3.18]
 PITCHES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
-# Initialize the Gemini client (automatically finds GEMINI_API_KEY environment variable)
 client = genai.Client()
 
 def cleanup_temp_files(*paths):
@@ -83,7 +82,6 @@ def health_check():
 # --- 1. GEMINI SEARCH ENDPOINT ---
 @app.post("/ask")
 async def ask_endpoint(query: str = Form(...)):
-    """Sends a user's search query to Gemini grounded with live Google Search."""
     try:
         response = client.models.generate_content(
             model="gemini-3.6-flash",
@@ -92,16 +90,14 @@ async def ask_endpoint(query: str = Form(...)):
                 tools=[types.Tool(google_search=types.GoogleSearch())]
             )
         )
-        
         if not response.text:
             return {"answer": "Search returned an empty response. Try a different query."}
-            
         return {"answer": response.text}
     except Exception as e:
         print(f"Google Search Error: {e}")
         return {"answer": f"Search Error: {str(e)}"}
 
-# --- 2. YT-DLP + FFMPEG LINK DOWNLOADER & AUTO BPM/KEY ENDPOINT ---
+# --- 2. YT-DLP + FFMPEG LINK DOWNLOADER (WITH YOUR CONFIG.TXT SETTINGS) ---
 @app.post("/download_url")
 async def download_url_endpoint(
     background_tasks: BackgroundTasks,
@@ -113,17 +109,34 @@ async def download_url_endpoint(
         fmt = "wav" if target_format.lower().strip() == "wav" else "mp3"
         out_tmpl = os.path.join(temp_dir, "audio_download.%(ext)s")
 
+        # Matches your config.txt settings (--impersonate chrome, -4, --no-mtime, --no-warnings, etc.)
         ydl_opts = {
             'format': 'bestaudio/best',
             'outtmpl': out_tmpl,
             'noplaylist': True,
             'quiet': True,
+            'no_warnings': True,            # --no-warnings
+            'source_address': '0.0.0.0',    # -4 (Force IPv4)
+            'updatetime': False,            # --no-mtime
+            'cachedir': False,              # --rm-cache-dir
+            'check_formats': 'selected',    # --check-formats
+            'impersonate': ImpersonateTarget('chrome'),  # --impersonate chrome
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': fmt,
                 'preferredquality': '320',
             }],
         }
+
+        # Automatically load cookies.txt (from project folder or Render Secret Files)
+        # We copy it to temp_dir first so yt-dlp can update cookies without read-only errors
+        cookie_locations = ["cookies.txt", "/etc/secrets/cookies.txt", r"C:\Users\TJ\cookies.txt"]
+        for c_path in cookie_locations:
+            if os.path.exists(c_path):
+                temp_cookie = os.path.join(temp_dir, "cookies.txt")
+                shutil.copyfile(c_path, temp_cookie)
+                ydl_opts['cookiefile'] = temp_cookie
+                break
 
         def download_and_extract():
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -133,10 +146,9 @@ async def download_url_endpoint(
         title = await asyncio.to_thread(download_and_extract)
         final_file = os.path.join(temp_dir, f"audio_download.{fmt}")
 
-        # Automatically detect BPM & Key from the converted audio file
+        # Automatically detect BPM & Key
         bpm_str, detected_key = await asyncio.to_thread(detect_bpm_and_key, final_file)
 
-        # Build clean ASCII filename for download headers
         safe_title = "".join(c for c in title if c.isascii() and (c.isalnum() or c in (' ', '-', '_'))).strip() or "ninga_track"
         out_filename = f"{safe_title}.{fmt}"
         media_type = "audio/wav" if fmt == "wav" else "audio/mpeg"
@@ -155,7 +167,7 @@ async def download_url_endpoint(
         cleanup_temp_files(temp_dir)
         return JSONResponse(status_code=400, content={"error": f"Failed to download link: {str(e)}"})
 
-# --- 3. BPM & KEY ANALYZER ENDPOINT (For Drag & Drop Audio Files) ---
+# --- 3. BPM & KEY ANALYZER ENDPOINT ---
 @app.post("/analyze")
 async def analyze_endpoint(file: UploadFile = File(...)):
     try:
@@ -163,12 +175,11 @@ async def analyze_endpoint(file: UploadFile = File(...)):
         audio_stream = io.BytesIO(contents)
         bpm_str, detected_key = await asyncio.to_thread(detect_bpm_and_key, audio_stream)
         return {"bpm": bpm_str, "key": detected_key}
-
     except Exception as e:
         print("Error processing audio:", e)
         return {"bpm": "Error processing file", "key": ""}
 
-# --- 4. LOCAL FILE CONVERTER ENDPOINT (Supports both WAV and MP3) ---
+# --- 4. LOCAL FILE CONVERTER ENDPOINT ---
 @app.post("/convert")
 async def convert_endpoint(
     background_tasks: BackgroundTasks, 

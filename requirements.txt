@@ -6,4 +6,5 @@ numpy
 scipy
 soundfile
 google-genai
-yt-dlp
+yt-dlp[default]
+curl_cffi

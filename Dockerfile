@@ -1,8 +1,12 @@
 FROM python:3.10-slim
 
+# Copy Deno binary into Linux PATH (matches your Windows Deno PATH setup for yt-dlp)
+COPY --from=denoland/deno:bin /deno /usr/local/bin/deno
+
 # Install system packages cleanly
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
