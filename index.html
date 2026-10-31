@@ -101,7 +101,7 @@
       color: #000000;
     }
 
-    /* Gemini Search Section */
+    /* Ask Ninga Search Section */
     .search-container {
       width: 100%;
       max-width: 320px;
@@ -180,11 +180,10 @@
       <div class="toggle-btn" id="modeConvert">MP4 to MP3</div>
     </div>
 
-    <!-- Gemini Feature -->
+    <!-- Ask Ninga Feature -->
     <div class="search-container" id="searchContainer">
       <div class="search-input-row">
-        <!-- Changed placeholder text -->
-        <input type="text" id="searchInput" placeholder="Ask Gemini...">
+        <input type="text" id="searchInput" placeholder="Ask Ninga...">
         <button id="searchBtn" type="button">Search</button>
       </div>
       <div id="searchResult"></div>
@@ -365,7 +364,7 @@
       }
     }
 
-    // --- 3. GEMINI SEARCH LOGIC ---
+    // --- 3. ASK NINGA SEARCH LOGIC ---
     const searchContainer = document.getElementById('searchContainer');
     const searchInput = document.getElementById('searchInput');
     const searchBtn = document.getElementById('searchBtn');
@@ -378,8 +377,7 @@
       const query = searchInput.value.trim();
       if (!query) return;
 
-      // Changed loading text
-      searchResult.innerText = "Asking Gemini... ⏳";
+      searchResult.innerText = "Asking Ninga... ⏳";
       searchBtn.disabled = true;
 
       const formData = new FormData();
