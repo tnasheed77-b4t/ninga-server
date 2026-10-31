@@ -1,32 +1,24 @@
 {
-  "id": "/?source=pwa",
+  "manifest_version": 3,
   "name": "Ninga",
   "short_name": "Ninga",
-  "description": "Drag and drop files to instantly detect BPM and musical key, convert media into high-quality MP3s, or search the web with Ask Ninga.",
-  "start_url": "./",
-  "display": "standalone",
-  "orientation": "portrait",
-  "background_color": "#000000",
-  "theme_color": "#000000",
-  "icons": [
-    {
-      "src": "logo.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "logo.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
+  "version": "1.0.0",
+  "description": "Paste links to download WAV or MP3 audio with yt-dlp and FFmpeg, automatically detect BPM and musical key, or search the web with Ask Ninga.",
+  "action": {
+    "default_popup": "index.html",
+    "default_title": "Ninga",
+    "default_icon": {
+      "16": "logo.png",
+      "48": "logo.png",
+      "128": "logo.png"
     }
-  ],
-  "screenshots": [
-    {
-      "src": "logo.png",
-      "sizes": "512x512",
-      "type": "image/png"
-    }
+  },
+  "icons": {
+    "16": "logo.png",
+    "48": "logo.png",
+    "128": "logo.png"
+  },
+  "host_permissions": [
+    "https://ninga-audio-api.onrender.com/*"
   ]
 }

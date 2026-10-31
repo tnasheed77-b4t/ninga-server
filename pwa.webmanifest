@@ -1,0 +1,32 @@
+{
+  "id": "/?source=pwa",
+  "name": "Ninga",
+  "short_name": "Ninga",
+  "description": "Paste links to download WAV or MP3 audio with yt-dlp and FFmpeg, automatically detect BPM and musical key, or search the web with Ask Ninga.",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "icons": [
+    {
+      "src": "logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

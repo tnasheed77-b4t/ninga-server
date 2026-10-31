@@ -1,9 +1,10 @@
-const CACHE_NAME = 'ninga-cache-v16';
+const CACHE_NAME = 'ninga-cache-v17';
 const urlsToCache = [
   './',
   './index.html',
+  './app.js',
   './logo.png',
-  './manifest.json'
+  './pwa.webmanifest'
 ];
 
 self.addEventListener('install', event => {
