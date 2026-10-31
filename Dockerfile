@@ -1,6 +1,6 @@
-FROM python:3.10-slim
+FROM python:3.12-slim
 
-# Copy Deno binary into Linux PATH (matches your Windows Deno PATH setup for yt-dlp)
+# Copy Deno binary into Linux PATH for yt-dlp signature solving
 COPY --from=denoland/deno:bin /deno /usr/local/bin/deno
 
 # Install system packages cleanly
@@ -13,7 +13,8 @@ WORKDIR /app
 
 # Copy dependencies first to leverage Docker layer caching
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -U pip && \
+    pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY . .
