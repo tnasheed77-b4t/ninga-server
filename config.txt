@@ -1,0 +1,11 @@
+--cookies "C:\Users\TJ\cookies.txt"
+--impersonate chrome
+--check-formats
+--rm-cache-dir
+-4
+--no-mtime
+-f "bv*+ba/b"
+--recode-video mp4
+-P "C:\Users\TJ\Downloads"
+-o "%(title)s.%(ext)s"
+--no-warnings
