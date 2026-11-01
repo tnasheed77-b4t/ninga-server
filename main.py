@@ -108,7 +108,7 @@ async def download_url_endpoint(
         fmt = "wav" if target_format.lower().strip() == "wav" else "mp3"
         out_tmpl = os.path.join(temp_dir, "audio_download.%(ext)s")
 
-        # Locate cookies.txt
+        # Locate cookies.txt and verify it contains actual logged-in YouTube tokens
         cookie_locations = [
             "/etc/secrets/cookies.txt",
             "/app/cookies.txt",
@@ -119,7 +119,10 @@ async def download_url_endpoint(
         for c_path in cookie_locations:
             if os.path.exists(c_path) and os.path.getsize(c_path) > 0:
                 found_cookie_path = c_path
-                print(f"Found cookies.txt at: {c_path} ({os.path.getsize(c_path)} bytes)")
+                with open(c_path, "r", encoding="utf-8", errors="ignore") as cf:
+                    cookie_text = cf.read()
+                has_auth = any(k in cookie_text for k in ["LOGIN_INFO", "__Secure-3PSID", "__Secure-1PSID", "SAPISID"])
+                print(f"Found cookies.txt at: {c_path} ({os.path.getsize(c_path)} bytes) | Logged-In Auth Tokens Present: {has_auth}")
                 break
 
         def build_base_opts(use_cookies=True, player_clients=None, use_impersonate=True):
@@ -150,18 +153,17 @@ async def download_url_endpoint(
                     pass
 
             if use_cookies and found_cookie_path:
-                temp_cookie = os.path.join(temp_dir, "working_cookies.txt")
+                temp_cookie = os.path.join(temp_dir, f"working_cookies_{os.urandom(4).hex()}.txt")
                 shutil.copyfile(found_cookie_path, temp_cookie)
                 opts['cookiefile'] = temp_cookie
 
             return opts
 
         def download_and_extract():
-            # Strategy list: tries cookie-compatible clients first, then cookie-less mobile clients
             strategies = [
-                ("Default + Cookies + Impersonate", build_base_opts(use_cookies=True, player_clients=None, use_impersonate=True)),
-                ("TV/MWeb/Creator + Cookies", build_base_opts(use_cookies=True, player_clients=['tv', 'mweb', 'web_creator'], use_impersonate=False)),
-                ("Mobile iOS/Android_VR (No Cookies)", build_base_opts(use_cookies=False, player_clients=['ios', 'android_vr'], use_impersonate=False)),
+                ("Web + Cookies + Impersonate", build_base_opts(use_cookies=True, player_clients=['web', 'default'], use_impersonate=True)),
+                ("TV/MWeb/Creator + Cookies", build_base_opts(use_cookies=True, player_clients=['tv_embedded', 'mweb', 'web_creator'], use_impersonate=False)),
+                ("Android VR / iOS (No Cookies)", build_base_opts(use_cookies=False, player_clients=['android_vr', 'ios'], use_impersonate=False)),
             ]
             last_err = None
             for name, opts in strategies:

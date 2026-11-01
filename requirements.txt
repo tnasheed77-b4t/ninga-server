@@ -8,3 +8,4 @@ soundfile
 google-genai
 yt-dlp[default,curl-cffi]
 curl_cffi
+bgutil-ytdlp-pot-provider
