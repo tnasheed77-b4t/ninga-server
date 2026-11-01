@@ -108,61 +108,72 @@ async def download_url_endpoint(
         fmt = "wav" if target_format.lower().strip() == "wav" else "mp3"
         out_tmpl = os.path.join(temp_dir, "audio_download.%(ext)s")
 
-        ydl_opts = {
-            'format': 'bestaudio/best',
-            'outtmpl': out_tmpl,
-            'noplaylist': True,
-            'quiet': True,
-            'no_warnings': True,
-            'source_address': '0.0.0.0',  # -4 (Force IPv4)
-            'updatetime': False,          # --no-mtime
-            'cachedir': False,            # --rm-cache-dir
-            'nocheckcertificate': True,
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': fmt,
-                'preferredquality': '320',
-            }],
-        }
-
-        # Enable Chrome impersonation safely
-        try:
-            from yt_dlp.networking.impersonate import ImpersonateTarget  # type: ignore
-            ydl_opts['impersonate'] = ImpersonateTarget.from_str('chrome')
-        except Exception as imp_err:
-            print("Impersonate setup notice:", imp_err)
-
-        # Check all possible Render Secret File & local locations for cookies.txt
+        # Locate cookies.txt
         cookie_locations = [
             "/etc/secrets/cookies.txt",
             "/app/cookies.txt",
             "cookies.txt",
             r"C:\Users\TJ\cookies.txt"
         ]
-        cookie_found = False
+        found_cookie_path = None
         for c_path in cookie_locations:
             if os.path.exists(c_path) and os.path.getsize(c_path) > 0:
-                temp_cookie = os.path.join(temp_dir, "working_cookies.txt")
-                shutil.copyfile(c_path, temp_cookie)
-                ydl_opts['cookiefile'] = temp_cookie
-                cookie_found = True
-                print(f"Loaded cookies.txt from: {c_path} ({os.path.getsize(c_path)} bytes)")
+                found_cookie_path = c_path
+                print(f"Found cookies.txt at: {c_path} ({os.path.getsize(c_path)} bytes)")
                 break
 
-        if not cookie_found:
-            print("WARNING: No cookies.txt file found on server! Checked:", cookie_locations)
+        def build_base_opts(use_cookies=True, player_clients=None, use_impersonate=True):
+            opts = {
+                'format': 'bestaudio/best',
+                'outtmpl': out_tmpl,
+                'noplaylist': True,
+                'quiet': True,
+                'no_warnings': True,
+                'source_address': '0.0.0.0',
+                'updatetime': False,
+                'cachedir': False,
+                'nocheckcertificate': True,
+                'postprocessors': [{
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': fmt,
+                    'preferredquality': '320',
+                }],
+            }
+            if player_clients:
+                opts['extractor_args'] = {'youtube': {'player_client': player_clients}}
+
+            if use_impersonate:
+                try:
+                    from yt_dlp.networking.impersonate import ImpersonateTarget  # type: ignore
+                    opts['impersonate'] = ImpersonateTarget.from_str('chrome')
+                except Exception:
+                    pass
+
+            if use_cookies and found_cookie_path:
+                temp_cookie = os.path.join(temp_dir, "working_cookies.txt")
+                shutil.copyfile(found_cookie_path, temp_cookie)
+                opts['cookiefile'] = temp_cookie
+
+            return opts
 
         def download_and_extract():
-            try:
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    info = ydl.extract_info(url, download=True)
-                    return info.get('title', 'ninga_audio')
-            except Exception as first_err:
-                print("First attempt failed, retrying without impersonate:", first_err)
-                ydl_opts.pop('impersonate', None)
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    info = ydl.extract_info(url, download=True)
-                    return info.get('title', 'ninga_audio')
+            # Strategy list: tries cookie-compatible clients first, then cookie-less mobile clients
+            strategies = [
+                ("Default + Cookies + Impersonate", build_base_opts(use_cookies=True, player_clients=None, use_impersonate=True)),
+                ("TV/MWeb/Creator + Cookies", build_base_opts(use_cookies=True, player_clients=['tv', 'mweb', 'web_creator'], use_impersonate=False)),
+                ("Mobile iOS/Android_VR (No Cookies)", build_base_opts(use_cookies=False, player_clients=['ios', 'android_vr'], use_impersonate=False)),
+            ]
+            last_err = None
+            for name, opts in strategies:
+                try:
+                    print(f"Trying yt-dlp strategy: {name}")
+                    with yt_dlp.YoutubeDL(opts) as ydl:
+                        info = ydl.extract_info(url, download=True)
+                        return info.get('title', 'ninga_audio')
+                except Exception as err:
+                    print(f"Strategy '{name}' failed: {err}")
+                    last_err = err
+            raise last_err
 
         title = await asyncio.to_thread(download_and_extract)
         final_file = os.path.join(temp_dir, f"audio_download.{fmt}")

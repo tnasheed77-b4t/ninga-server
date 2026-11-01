@@ -19,5 +19,8 @@ RUN pip install --no-cache-dir -U pip && \
 # Copy application code
 COPY . .
 
+# Always upgrade yt-dlp to the latest nightly build (equivalent to yt-dlp -U --update-to nightly)
+RUN pip install --no-cache-dir -U --pre "yt-dlp[default,curl-cffi]"
+
 # Run uvicorn using exec array format for proper signal propagation
 CMD ["sh", "-c", "exec uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
