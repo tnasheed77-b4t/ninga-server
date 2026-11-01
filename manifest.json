@@ -3,7 +3,7 @@
   "name": "Ninga",
   "short_name": "Ninga",
   "version": "1.0.0",
-  "description": "Paste links to download WAV or MP3 audio with yt-dlp and FFmpeg, automatically detect BPM and musical key, or search the web with Ask Ninga.",
+  "description": "Paste links to download WAV or MP3 audio, automatically detect BPM and musical key, or ask Ninga.",
   "action": {
     "default_popup": "index.html",
     "default_title": "Ninga",
