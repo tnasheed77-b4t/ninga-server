@@ -125,13 +125,13 @@ async def download_url_endpoint(
                 print(f"Found cookies.txt at: {c_path} ({os.path.getsize(c_path)} bytes) | Logged-In Auth Tokens Present: {has_auth}")
                 break
 
-        def build_base_opts(use_cookies=True, player_clients=None, use_impersonate=True):
+        def build_base_opts(use_cookies=True, player_clients=None, use_impersonate=False, fmt_selector='bestaudio/best'):
             opts = {
-                'format': 'bestaudio/best',
                 'outtmpl': out_tmpl,
                 'noplaylist': True,
                 'quiet': True,
                 'no_warnings': True,
+                'geo_bypass': True,
                 'source_address': '0.0.0.0',
                 'updatetime': False,
                 'cachedir': False,
@@ -142,6 +142,9 @@ async def download_url_endpoint(
                     'preferredquality': '320',
                 }],
             }
+            if fmt_selector:
+                opts['format'] = fmt_selector
+
             if player_clients:
                 opts['extractor_args'] = {'youtube': {'player_client': player_clients}}
 
@@ -161,9 +164,9 @@ async def download_url_endpoint(
 
         def download_and_extract():
             strategies = [
-                ("Web + Cookies + Impersonate", build_base_opts(use_cookies=True, player_clients=['web', 'default'], use_impersonate=True)),
-                ("TV/MWeb/Creator + Cookies", build_base_opts(use_cookies=True, player_clients=['tv_embedded', 'mweb', 'web_creator'], use_impersonate=False)),
-                ("Android VR / iOS (No Cookies)", build_base_opts(use_cookies=False, player_clients=['android_vr', 'ios'], use_impersonate=False)),
+                ("TV / MWeb + Cookies", build_base_opts(use_cookies=True, player_clients=['tv', 'mweb'], use_impersonate=False)),
+                ("Web Creator + Cookies", build_base_opts(use_cookies=True, player_clients=['web_creator'], use_impersonate=False)),
+                ("Default Web + Cookies (Any Format)", build_base_opts(use_cookies=True, player_clients=None, use_impersonate=False, fmt_selector=None)),
             ]
             last_err = None
             for name, opts in strategies:
@@ -220,42 +223,3 @@ async def analyze_endpoint(file: UploadFile = File(...)):
         return {"bpm": "Error processing file", "key": ""}
 
 # --- 4. LOCAL FILE CONVERTER ENDPOINT ---
-@app.post("/convert")
-async def convert_endpoint(
-    background_tasks: BackgroundTasks, 
-    file: UploadFile = File(...),
-    target_format: str = Form("mp3") 
-):
-    temp_in = None
-    temp_out = None
-    try:
-        fmt = "wav" if target_format.lower().strip() == "wav" else "mp3"
-        contents = await file.read()
-        in_suffix = os.path.splitext(file.filename)[1] or ".tmp"
-        
-        fd_in, temp_in = tempfile.mkstemp(suffix=in_suffix)
-        fd_out, temp_out = tempfile.mkstemp(suffix=f".{fmt}")
-        
-        os.close(fd_in)
-        os.close(fd_out)
-        
-        with open(temp_in, "wb") as f:
-            f.write(contents)
-            
-        command = ["ffmpeg", "-y", "-i", temp_in, "-vn"]
-        if fmt == "mp3":
-            command.extend(["-b:a", "320k"])
-        command.append(temp_out)
-        
-        await asyncio.to_thread(subprocess.run, command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            
-        background_tasks.add_task(cleanup_temp_files, temp_in, temp_out)
-        
-        out_filename = f"{os.path.splitext(file.filename)[0]}_HQ.{fmt}"
-        media_type = "audio/wav" if fmt == "wav" else "audio/mpeg"
-        return FileResponse(temp_out, media_type=media_type, filename=out_filename)
-        
-    except Exception as e:
-        print("Conversion error:", e)
-        cleanup_temp_files(temp_in, temp_out)
-        return {"error": "Failed to convert file"}
